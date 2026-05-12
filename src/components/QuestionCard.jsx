@@ -113,7 +113,7 @@ export function QuestionCard({
             Scor: {result.score} / {result.maxScore} puncte
             {result.annulled && (
               <span className="annulled-tag">
-                Grilă anulată — la complement multiplu trebuie bifate 2-4
+                Grilă anulată - la complement multiplu trebuie bifate 2-4
                 variante
               </span>
             )}
