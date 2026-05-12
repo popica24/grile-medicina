@@ -1,4 +1,4 @@
-# Grile Medicină — MVP
+# Grile Medicină - MVP
 
 Aplicație web pentru rezolvarea de grile tip exam de medicină.
 
@@ -51,11 +51,12 @@ src/
 
 ## Date demo
 
-Sunt 3 capitole (Cardiologie, Pneumologie, Gastroenterologie) cu 10 grile total — exemple realiste cu explicații. Înlocuiește `src/data/questions.js` cu datele tale reale (format identic).
+Sunt 3 capitole (Cardiologie, Pneumologie, Gastroenterologie) cu 10 grile total - exemple realiste cu explicații. Înlocuiește `src/data/questions.js` cu datele tale reale (format identic).
 
 ## Algoritm de scoring
 
 Pentru fiecare poziție i din cele 5 variante:
+
 - `s_i = 1` dacă decizia coincide cu realitatea (bifat ↔ corect)
 - `s_i = 0` altfel
 

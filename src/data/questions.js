@@ -39,7 +39,7 @@ export const chapters = [
             ],
             correct: [0, 1, 3, 4],
             explanation:
-              "BNP/NT-proBNP au sensibilitate mare dar specificitate scazuta — cresc si in fibrilatie atriala, embolie pulmonara, IRA. Valoare predictiva negativa excelenta.",
+              "BNP/NT-proBNP au sensibilitate mare dar specificitate scazuta - cresc si in fibrilatie atriala, embolie pulmonara, IRA. Valoare predictiva negativa excelenta.",
           },
           {
             id: "q3",
