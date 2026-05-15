@@ -1,53 +1,140 @@
-import { useState, useCallback } from 'react'
-import { QuestionCard } from './QuestionCard'
-import { useTimer, TimerDisplay } from './Timer'
-import { getBookmarks, toggleBookmark } from '../storage'
+import { useState, useCallback, useEffect, useRef } from "react";
+import { QuestionCard } from "./QuestionCard";
+import { useTimer, TimerDisplay } from "./Timer";
+import {
+  getBookmarks,
+  toggleBookmark,
+  saveCheckpoint,
+  clearCheckpoint,
+} from "../storage";
+import { useAuth } from "../context/AuthContext";
+import { useAccess, TRIAL_TOTAL } from "../hooks/useAccess";
+import { supabase } from "../utils/supabase";
+import { scoreSession } from "../scoring";
+import { chapters } from "../data/questions";
 
-export function SessionScreen({ session, onFinish, onExit }) {
-  const { questions, mode, timerSeconds, label } = session
-  const [answers, setAnswers] = useState({}) // { questionId: [indices] }
-  const [checkedSet, setCheckedSet] = useState(new Set()) // grile verificate in study mode
-  const [finished, setFinished] = useState(false)
-  const [bookmarks, setBookmarks] = useState(getBookmarks())
+const RETRY_LABEL = "Reia greșitele";
 
+export function SessionScreen({
+  session,
+  answers: initialAnswers,
+  checkedSet: initialChecked,
+  onFinish,
+  onExit,
+}) {
+  const { questions, mode, timerSeconds, label } = session;
+  const [answers, setAnswers] = useState(initialAnswers || {});
+  const [checkedSet, setCheckedSet] = useState(initialChecked || new Set());
+  const [finished, setFinished] = useState(false);
+  const [bookmarks, setBookmarks] = useState(getBookmarks());
+
+  const { user, refreshProfile } = useAuth();
+  const { isTrial, used } = useAccess();
+  const elapsedRef = useRef(0);
+
+  // handleExpire definit inainte de useTimer
   const handleExpire = useCallback(() => {
     if (!finished) {
-      setFinished(true)
-      onFinish(answers)
+      setFinished(true);
+      clearCheckpoint();
+      incrementTrialIfNeeded(answers);
+      saveSessionToSupabase(answers);
+      onFinish(answers);
     }
-  }, [finished, answers, onFinish])
+  }, [finished, answers, onFinish]);
 
-  const elapsed = useTimer(timerSeconds, !finished, handleExpire)
+  const elapsed = useTimer(timerSeconds, !finished, handleExpire);
+
+  // Tine ref-ul sincronizat cu elapsed pentru a-l accesa in async functions
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
+
+  // Auto-save checkpoint
+  useEffect(() => {
+    if (!finished) saveCheckpoint(session, answers, checkedSet);
+  }, [answers, checkedSet, finished]);
+
+  async function incrementTrialIfNeeded(finalAnswers) {
+    if (!isTrial || label === RETRY_LABEL) return;
+    const newUsed = Math.min(TRIAL_TOTAL, used + questions.length);
+    if (newUsed === used) return;
+    await supabase
+      .from("profiles")
+      .update({ trial_questions_used: newUsed })
+      .eq("id", user.id);
+    refreshProfile();
+  }
+
+  async function saveSessionToSupabase(finalAnswers) {
+    if (!user) return;
+    const result = scoreSession(questions, finalAnswers);
+    const chapterIds = [
+      ...new Set(
+        questions
+          .map(
+            (q) =>
+              chapters.find((ch) =>
+                ch.subchapters.some((s) =>
+                  s.questions.some((x) => x.id === q.id),
+                ),
+              )?.id,
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const duration =
+      timerSeconds != null
+        ? timerSeconds - elapsedRef.current // countdown: scadem ce a ramas
+        : elapsedRef.current; // countup: cat a durat
+
+    await supabase.from("sessions").insert({
+      user_id: user.id,
+      questions_count: questions.length,
+      score: result.totalScore,
+      max_score: result.totalMax,
+      mode,
+      chapter_ids: chapterIds,
+      duration_seconds: Math.max(0, duration),
+    });
+  }
 
   function toggleOption(qid, optionIndex) {
     setAnswers((prev) => {
-      const current = prev[qid] || []
+      const current = prev[qid] || [];
       const next = current.includes(optionIndex)
         ? current.filter((i) => i !== optionIndex)
-        : [...current, optionIndex]
-      return { ...prev, [qid]: next }
-    })
+        : [...current, optionIndex];
+      return { ...prev, [qid]: next };
+    });
   }
 
   function handleCheck(qid) {
     setCheckedSet((prev) => {
-      const next = new Set(prev)
-      next.add(qid)
-      return next
-    })
+      const next = new Set(prev);
+      next.add(qid);
+      return next;
+    });
   }
 
   function handleBookmark(qid) {
-    setBookmarks(toggleBookmark(qid))
+    setBookmarks(toggleBookmark(qid));
   }
 
-  function handleFinish() {
-    setFinished(true)
-    onFinish(answers)
+  async function handleFinish() {
+    setFinished(true);
+    clearCheckpoint();
+    await Promise.all([
+      incrementTrialIfNeeded(answers),
+      saveSessionToSupabase(answers),
+    ]);
+    onFinish(answers);
   }
 
-  const answeredCount = Object.values(answers).filter((a) => a.length > 0).length
-  const checkedCount = checkedSet.size
+  const answeredCount = Object.values(answers).filter(
+    (a) => a.length > 0,
+  ).length;
+  const checkedCount = checkedSet.size;
 
   return (
     <>
@@ -57,12 +144,16 @@ export function SessionScreen({ session, onFinish, onExit }) {
         </button>
         <div className="progress">
           {label && <strong>{label} · </strong>}
-          {mode === 'study'
+          {mode === "study"
             ? `${checkedCount} / ${questions.length} verificate`
-            : `${answeredCount} / ${questions.length} grile cu răspunsuri`}
+            : `${answeredCount} / ${questions.length} cu răspunsuri`}
         </div>
         {timerSeconds != null ? (
-          <TimerDisplay seconds={elapsed} isCountdown={true} totalSeconds={timerSeconds} />
+          <TimerDisplay
+            seconds={elapsed}
+            isCountdown={true}
+            totalSeconds={timerSeconds}
+          />
         ) : (
           <TimerDisplay seconds={elapsed} isCountdown={false} />
         )}
@@ -89,7 +180,7 @@ export function SessionScreen({ session, onFinish, onExit }) {
           <div className="summary">
             <strong>
               {answeredCount} / {questions.length}
-            </strong>{' '}
+            </strong>{" "}
             grile completate
           </div>
           <button className="btn btn-primary btn-lg" onClick={handleFinish}>
@@ -98,5 +189,5 @@ export function SessionScreen({ session, onFinish, onExit }) {
         </div>
       )}
     </>
-  )
+  );
 }

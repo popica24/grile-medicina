@@ -1,4 +1,8 @@
-import { scoreSession, getIncorrectQuestionIds } from "../scoring";
+import {
+  scoreSession,
+  getIncorrectQuestionIds,
+  getZeroOrOneIds,
+} from "../scoring";
 import { setLastIncorrect } from "../storage";
 import { useEffect } from "react";
 
@@ -11,8 +15,8 @@ export function ResultsScreen({
 }) {
   const result = scoreSession(session.questions, answers);
   const incorrectIds = getIncorrectQuestionIds(result);
+  const zeroOrOneIds = getZeroOrOneIds(result);
 
-  // Salvează lista greșitelor pentru "reia greșitele"
   useEffect(() => {
     setLastIncorrect(incorrectIds);
   }, []);
@@ -23,6 +27,9 @@ export function ResultsScreen({
   else if (pct >= 75) verdict = "Foarte bine";
   else if (pct >= 60) verdict = "Bine";
   else if (pct >= 45) verdict = "Mai e de lucru";
+
+  const hasSimplu = result.simplu.count > 0;
+  const hasMultiplu = result.multiplu.count > 0;
 
   return (
     <>
@@ -44,22 +51,100 @@ export function ResultsScreen({
         </div>
       </div>
 
+      {/* Stats generale */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">Grile complet corecte</div>
+          <div className="stat-label">Complet corecte</div>
           <div className="stat-value">
             {result.fullyCorrect} / {result.totalQuestions}
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Grile cu erori</div>
+          <div className="stat-label">Cu erori</div>
           <div className="stat-value">{incorrectIds.length}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Procentaj</div>
-          <div className="stat-value">{pct}%</div>
+          <div className="stat-label">0–1 puncte</div>
+          <div
+            className="stat-value"
+            style={{
+              color: zeroOrOneIds.length > 0 ? "var(--danger)" : "inherit",
+            }}
+          >
+            {zeroOrOneIds.length}
+          </div>
         </div>
       </div>
+
+      {/* Defalcat simplu / multiplu */}
+      {(hasSimplu || hasMultiplu) && (
+        <>
+          <div className="results-divider">Defalcat pe tip</div>
+          <div className="stats-grid">
+            {hasMultiplu && (
+              <div className="stat-card">
+                <div className="stat-label">Complement multiplu</div>
+                <div className="stat-value">
+                  {result.multiplu.score} / {result.multiplu.max}
+                </div>
+                <div className="stat-sub">
+                  {result.multiplu.fullyCorrect} / {result.multiplu.count} grile
+                  corecte ·{" "}
+                  {result.multiplu.max > 0
+                    ? Math.round(
+                        (result.multiplu.score / result.multiplu.max) * 100,
+                      )
+                    : 0}
+                  %
+                </div>
+              </div>
+            )}
+            {hasSimplu && (
+              <div className="stat-card">
+                <div className="stat-label">Complement simplu</div>
+                <div className="stat-value">
+                  {result.simplu.score} / {result.simplu.max}
+                </div>
+                <div className="stat-sub">
+                  {result.simplu.fullyCorrect} / {result.simplu.count} grile
+                  corecte ·{" "}
+                  {result.simplu.max > 0
+                    ? Math.round(
+                        (result.simplu.score / result.simplu.max) * 100,
+                      )
+                    : 0}
+                  %
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Grile complet gresite */}
+      {zeroOrOneIds.length > 0 && (
+        <>
+          <div className="results-divider" style={{ color: "var(--danger)" }}>
+            Grile complet greșite (0-1 puncte) - {zeroOrOneIds.length}
+          </div>
+          <div className="zero-list">
+            {session.questions
+              .filter((q) => zeroOrOneIds.includes(q.id))
+              .map((q, i) => (
+                <div key={q.id} className="zero-item">
+                  <span className="zero-num">{i + 1}.</span>
+                  <span className="zero-text">{q.text}</span>
+                  <span
+                    className={`type-badge ${q.type === "simplu" ? "simplu" : "multiplu"}`}
+                    style={{ marginLeft: 8 }}
+                  >
+                    {q.type === "simplu" ? "simplu" : "multiplu"}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
 
       <div className="results-actions">
         <button className="btn btn-primary" onClick={onReviewInline}>
@@ -67,7 +152,7 @@ export function ResultsScreen({
         </button>
         {incorrectIds.length > 0 && (
           <button className="btn" onClick={onRetryIncorrect}>
-            ↻ Reia doar grilele greșite ({incorrectIds.length})
+            ↻ Reia grilele greșite ({incorrectIds.length})
           </button>
         )}
         <button className="btn" onClick={onRestart}>

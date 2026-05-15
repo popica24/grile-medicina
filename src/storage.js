@@ -1,6 +1,7 @@
 // Persistență simplă în localStorage pentru bookmarks și ultimul set de greșite
 const BOOKMARKS_KEY = "grile_bookmarks";
 const LAST_INCORRECT_KEY = "grile_last_incorrect";
+const CHECKPOINT_KEY = "grile_checkpoint";
 
 export function getBookmarks() {
   try {
@@ -28,4 +29,30 @@ export function getLastIncorrect() {
   } catch {
     return [];
   }
+}
+
+export function saveCheckpoint(session, answers, checkedSet) {
+  const data = {
+    session,
+    answers,
+    checkedSet: [...checkedSet],
+    savedAt: Date.now(),
+  };
+  localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(data));
+}
+
+export function getCheckpoint() {
+  try {
+    const raw = localStorage.getItem(CHECKPOINT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    data.checkedSet = new Set(data.checkedSet);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCheckpoint() {
+  localStorage.removeItem(CHECKPOINT_KEY);
 }
